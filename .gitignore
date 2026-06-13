@@ -1,0 +1,3 @@
+.env
+# Ignorer les fichiers de variables d'environnement locaux
+# Ajoutez ici d'autres fichiers secrets si nécessaire
