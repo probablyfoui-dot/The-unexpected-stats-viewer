@@ -1,6 +1,6 @@
-# The unexcpected stats viewer
+# Theunexcpectedstatsviewer
 
-The unexcpected stats viewer is a Discord bot built to check and display Hypixel statistics.
+Theunexcpectedstatsviewer is a Discord bot built to check and display Hypixel statistics in a fast, clear, and user-friendly way.
 
 ## What it does
 - Fetches Hypixel stats for players and popular game modes
@@ -18,5 +18,8 @@ The bot is designed to evolve with updates that emphasize:
 2. Fill in your Discord bot token and Hypixel API key
 3. Run the bot from the `bot/` folder
 
-## Waiting for feedback
-We are curently developing this as a team and we would love to have your take about what we could change to make this better
+## Security
+Keep `bot/.env` private and do not commit it to GitHub. Use `bot/.env.example` as the reference file for configuration.
+
+## Feedback
+We are currently developing this as a team and would love your feedback on what we could change to make this better!
