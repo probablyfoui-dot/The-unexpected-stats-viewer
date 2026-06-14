@@ -1,4 +1,4 @@
-# The un expected stats viewer
+# The unexpected stats viewer
 
 The unexpected stats viewer is a Discord bot built to check and display Hypixel statistics in a fast and clear way.
 
