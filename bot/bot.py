@@ -1,8 +1,7 @@
 """
-Hypixel BedWars Discord Bot
+Hypixel Discord Bot
 ----------------------------
 Command: /bedwars mc_ign:<username>
-Generates a clean gaming-style stat card inspired by Hystats.
 """
 
 import os
@@ -127,7 +126,7 @@ def xp_progress(exp, level):
     base = (lv//100)*100; lip = lv-base
     needed = EASY_XP[lip] if lip<4 else XP_PER
     current_xp_in_level = exp - spent if lv == 0 else exp - spent
-    # Simpler: fraction = level - int(level)
+    # fraction = level - int(level)
     frac = level - int(level)
     return frac, needed
 
@@ -209,7 +208,7 @@ async def generate_stats_image(ign, level, prestige_color, prestige_name,
     # ── TOP PRESTIGE BAR ──
     d.rectangle([0,0,W,4], fill=prestige_color)
 
-    # ── HEADER: badge + IGN on left, XP bar on right, all same line ──
+    # ── HEADER: badge + IGN, XP bar ──
     badge   = f"[{int(level)}\u2605]"
     badge_w = int(d.textlength(badge, font=f14))
     ign_w   = int(d.textlength(ign,   font=f14))
