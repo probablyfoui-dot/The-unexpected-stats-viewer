@@ -1,8 +1,7 @@
 """
 cogs/skywars.py
 ---------------
-SkyWars stats: stars, wins, KDR, WLR, with mode switcher.
-Follows the exact same style as cogs/bedwars.py.
+/skywars command
 """
 
 import io
@@ -12,7 +11,7 @@ from discord import app_commands
 from discord.ext import commands
 from PIL import Image, ImageDraw, ImageFont
 
-from core import fetch_uuid, fetch_player, FONT_PATH
+from core import fetch_uuid, fetch_player, FONT_PATH, FONT_SYMBOLS_PATH
 from cogs.hypixel import get_rank_display, draw_segments, segments_width
 
 
@@ -20,11 +19,33 @@ from cogs.hypixel import get_rank_display, draw_segments, segments_width
 # FONT
 # ---------------------------------------------------------------------------
 
+import os
+
 def load_font(size=10):
     try:
         return ImageFont.truetype(FONT_PATH, size)
     except Exception:
         return ImageFont.load_default()
+
+def load_symbol_font(size=14):
+    try:
+        return ImageFont.truetype(FONT_SYMBOLS_PATH, size)
+    except Exception:
+        return ImageFont.load_default()
+
+def px_star(draw, x, y, text, main_font, star_font, color, anchor="la"):
+    """Draw text where star glyphs (✫✪⚝✥) use star_font, everything else uses main_font."""
+    STAR_CHARS = set("✫✪⚝✥")
+    if anchor == "ra":
+        total = sum(
+            int(draw.textlength(ch, font=(star_font if ch in STAR_CHARS else main_font)))
+            for ch in text
+        )
+        x -= total
+    for ch in text:
+        font = star_font if ch in STAR_CHARS else main_font
+        draw.text((x, y), ch, font=font, fill=color)
+        x += int(draw.textlength(ch, font=font))
 
 
 # ---------------------------------------------------------------------------
@@ -201,54 +222,60 @@ def px(draw, x, y, text, font, color=C_WHITE, anchor="la"):
 # IMAGE GENERATOR
 # ---------------------------------------------------------------------------
 
-W, H = 860, 460
+W, H = 860, 490
 
 async def generate_sw_image(ign, star, progress, prestige_color, prestige_name,
                              stats, mode, rank_segments, rank_base_color):
     img = Image.new("RGB", (W, H), C_BG)
     d   = ImageDraw.Draw(img)
 
-    f10 = load_font(10)
-    f14 = load_font(14)
-    f16 = load_font(16)
+    f10  = load_font(10)
+    f12  = load_font(12)
+    f22  = load_font(22)
+    f16  = load_font(16)
+    fs16 = load_symbol_font(16)
+    fs10 = load_symbol_font(10)
 
     PAD = 16
     RX  = PAD
     RW  = W - PAD * 2
 
-    # Top accent bar in prestige colour
+    
     d.rectangle([0, 0, W, 4], fill=prestige_color)
 
-    # Header row: star badge + XP bar; rank+IGN
-    badge   = f"[{star}*]"
-    badge_w = int(d.textlength(badge, font=f14))
-    bar_y   = 8; bar_h = 18
+    
+    STAR = "✫"
+    badge_str = f"[{star}{STAR}]"
+    badge_w = sum(
+        int(d.textlength(ch, font=(fs16 if ch in "✫✪⚝✥" else f16)))
+        for ch in badge_str
+    )
+    bar_y   = 8; bar_h = 22
 
-    # Rank segments + IGN 
-    seg_w   = segments_width(d, rank_segments, f14) if rank_segments else 0
-    ign_w   = int(d.textlength(ign, font=f14))
-    name_block_w = seg_w + (8 if rank_segments else 0) + ign_w + 12  # 12px right margin
+    seg_w        = segments_width(d, rank_segments, f16) if rank_segments else 0
+    ign_w        = int(d.textlength(ign, font=f16))
+    name_block_w = seg_w + (8 if rank_segments else 0) + ign_w + 12
 
-    bar_x   = RX + badge_w + 8 + name_block_w
-    bar_w   = RW - (bar_x - RX)
+    bar_x = RX + badge_w + 8 + name_block_w
+    bar_w = RW - (bar_x - RX)
 
-    px(d, RX, bar_y + 2, badge, f14, prestige_color)
-    draw_segments(d, RX + badge_w + 8, bar_y + 2, rank_segments, f14)
-    px(d, RX + badge_w + 8 + seg_w + (8 if rank_segments else 0), bar_y + 2, ign, f14, rank_base_color)
+    px_star(d, RX, bar_y + 2, badge_str, f16, fs16, prestige_color)
+    draw_segments(d, RX + badge_w + 8, bar_y + 2, rank_segments, f16)
+    px(d, RX + badge_w + 8 + seg_w + (8 if rank_segments else 0), bar_y + 2, ign, f16, rank_base_color)
 
     d.rounded_rectangle([bar_x, bar_y, bar_x+bar_w, bar_y+bar_h], radius=3, fill=C_DARKGRAY)
     if progress > 0:
         d.rounded_rectangle([bar_x, bar_y, bar_x+int(bar_w*progress), bar_y+bar_h],
                             radius=3, fill=prestige_color)
-    px(d, bar_x+4,       bar_y+5, f"{star}*",   f10, C_BG)
-    px(d, bar_x+bar_w-4, bar_y+5, f"{star+1}*", f10, C_BG, anchor="ra")
-    px(d, bar_x+bar_w,   bar_y+bar_h+6, MODE_LABELS.get(mode, mode), f10, C_GRAY, anchor="ra")
+    px_star(d, bar_x+4,       bar_y+5, f"{star}{STAR}",   f10, fs10, C_BG)
+    px_star(d, bar_x+bar_w-4, bar_y+5, f"{star+1}{STAR}", f10, fs10, C_BG, anchor="ra")
+    px(d, bar_x+bar_w,   bar_y+bar_h+6, MODE_LABELS.get(mode, mode), f12, C_GRAY, anchor="ra")
 
-    sep_y = bar_y + bar_h + 14
+    sep_y = bar_y + bar_h + 16
     d.line([(RX, sep_y), (W-PAD, sep_y)], fill=C_BORDER, width=1)
 
-    GY  = sep_y + 8; BH = 82; GAP = 8
-    C0W = 180; C1W = (RW - C0W - GAP*2) // 2
+    GY  = sep_y + 8; BH = 90; GAP = 8
+    C0W = 190; C1W = (RW - C0W - GAP*2) // 2
     C0X = RX;  C1X = RX + C0W + GAP;  C2X = C1X + C1W + GAP
 
     ratio_stats = [
@@ -260,7 +287,7 @@ async def generate_sw_image(ign, star, progress, prestige_color, prestige_name,
     pos_stats = [
         ("Wins",     stats["wins"],   C_GREEN),
         ("Kills",    stats["kills"],  C_CYAN),
-        ("* Star",   star,            C_GOLD),
+        ("✫ Star",   star,        C_GOLD),
         ("Prestige", prestige_name,   C_WHITE),
     ]
     neg_stats = [
@@ -275,19 +302,19 @@ async def generate_sw_image(ign, star, progress, prestige_color, prestige_name,
 
         panel(d, C0X, by, C0W, BH)
         lbl, val, col = ratio_stats[i]
-        px(d, C0X+12, by+12, lbl,      f10, C_GRAY)
-        px(d, C0X+12, by+32, str(val), f16, col)
+        px(d, C0X+12, by+10, lbl,      f12, C_GRAY)
+        px(d, C0X+12, by+32, str(val), f22, col)
 
         panel(d, C1X, by, C1W, BH)
         lbl, val, col = pos_stats[i]
-        px(d, C1X+12, by+12, lbl, f10, C_GRAY)
-        px(d, C1X+12, by+32, f"{val:,}" if isinstance(val, int) else str(val), f16, col)
+        px_star(d, C1X+12, by+10, lbl, f12, fs10, C_GRAY)
+        px(d, C1X+12, by+32, f"{val:,}" if isinstance(val, int) else str(val), f22, col)
 
         panel(d, C2X, by, C1W, BH)
         lbl, val, col = neg_stats[i]
-        px(d, C2X+12, by+12, lbl, f10, C_GRAY)
+        px(d, C2X+12, by+10, lbl, f12, C_GRAY)
         if val:
-            px(d, C2X+12, by+32, f"{val:,}" if isinstance(val, int) else str(val), f16, col)
+            px(d, C2X+12, by+32, f"{val:,}" if isinstance(val, int) else str(val), f22, col)
 
     buf = io.BytesIO()
     img.save(buf, "PNG")

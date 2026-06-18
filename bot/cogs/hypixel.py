@@ -1,8 +1,7 @@
 """
 cogs/hypixel.py
 ---------------
-General Hypixel profile stats: network level, achievement points,
-karma, rank, guild name.
+/hypixel command
 """
 
 import io
@@ -13,7 +12,7 @@ from discord import app_commands
 from discord.ext import commands
 from PIL import Image, ImageDraw, ImageFont
 
-from core import fetch_uuid, fetch_player, FONT_PATH
+from core import fetch_uuid, fetch_player, FONT_PATH, FONT_SYMBOLS_PATH
 
 HYPIXEL_GUILD_API = "https://api.hypixel.net/v2/guild"
 
@@ -25,6 +24,12 @@ HYPIXEL_GUILD_API = "https://api.hypixel.net/v2/guild"
 def load_font(size=10):
     try:
         return ImageFont.truetype(FONT_PATH, size)
+    except Exception:
+        return ImageFont.load_default()
+
+def load_symbol_font(size=14):
+    try:
+        return ImageFont.truetype(FONT_SYMBOLS_PATH, size)
     except Exception:
         return ImageFont.load_default()
 
@@ -48,7 +53,6 @@ def network_level_from_exp(exp: float) -> tuple[int, float]:
 # RANK COLOURS
 # ---------------------------------------------------------------------------
 
-# Minecraft colour code → RGB
 MC_COLORS = {
     "BLACK":        (  0,   0,   0),
     "DARK_BLUE":    (  0,   0, 170),
@@ -73,7 +77,9 @@ C_GOLD_MC = (255, 170, 0)
 
 def get_rank_display(player: dict):
     """
-    Returns a list of (text, color) tuples representing the rank display for a player.
+    Returns (segments, base_color) where segments is a list of (text, color)
+    to be drawn left-to-right, and base_color is used for the accent bar.
+
     Examples:
       MVP++  → [("[", gold), ("MVP", gold), ("++", black), ("]", gold)]
       MVP+   → [("[", aqua), ("MVP+", aqua), ("+", red), ("]", aqua)]
@@ -86,11 +92,8 @@ def get_rank_display(player: dict):
     if special not in ("NORMAL", "", None):
         # Staff / YouTuber ranks
         colors = {
-            "ADMIN":     (255,  85,  85),
-            "MODERATOR": ( 85, 255,  85),
-            "HELPER":    ( 85, 255, 255),
-            "JR_HELPER": ( 85, 255, 255),
-            "YOUTUBER":  (255,  85,  85),
+            "ዞ":     (255,  85,  85),
+            "YOUTUBE":  (255,  85,  85),
         }
         col = colors.get(special, (150, 150, 150))
         return [("[" + special + "]", col)], col
@@ -109,7 +112,7 @@ def get_rank_display(player: dict):
 
     rank = player.get("newPackageRank") or player.get("packageRank") or ""
     if rank == "MVP_PLUS":
-        # MVP+ : bracket+MVP all aqua, + colored by rankPlusColor
+        # MVP+ : bracket+MVP+] all aqua, + colored by rankPlusColor
         plus_col = MC_COLORS.get(player.get("rankPlusColor", "RED"), (255, 85, 85))
         segs = [
             ("[MVP", C_AQUA),
@@ -151,7 +154,7 @@ async def fetch_guild(session: aiohttp.ClientSession, uuid: str, api_key: str) -
 
 
 # ---------------------------------------------------------------------------
-# DRAW HELPERS
+# DRAW HELPERS  (identical palette)
 # ---------------------------------------------------------------------------
 
 C_BG       = (12,  12,  20)
@@ -186,7 +189,7 @@ def draw_segments(d, x, y, segments, font):
 def segments_width(d, segments, font):
     return sum(int(d.textlength(t, font=font)) for t, _ in segments)
 
-W, H = 860, 340
+W, H = 860, 360
 
 def generate_hypixel_image(ign: str, level: int, progress: float,
                             rank_segments: list, base_color: tuple,
@@ -195,39 +198,42 @@ def generate_hypixel_image(ign: str, level: int, progress: float,
     img = Image.new("RGB", (W, H), C_BG)
     d   = ImageDraw.Draw(img)
 
-    f8  = load_font(8)
-    f14 = load_font(14)
+    f10 = load_font(10)
+    f12 = load_font(12)
+    f16 = load_font(16)
+    f22 = load_font(22)
 
     PAD = 16
     RX  = PAD
     RW  = W - PAD * 2
 
-    # Top accent  bar
+    # Top accent bar
     d.rectangle([0, 0, W, 4], fill=base_color)
 
-    bar_y = 8; bar_h = 18
-    seg_w = segments_width(d, rank_segments, f14)
-    ign_w = int(d.textlength(ign, f14))
+    bar_y = 8; bar_h = 22
+    seg_w = segments_width(d, rank_segments, f16)
+    ign_w = int(d.textlength(ign, f16))
     name_end = RX + seg_w + (12 if rank_segments else 0) + ign_w + 20
     bar_x = name_end
     bar_w = RW - (bar_x - RX)
 
-    draw_segments(d, RX, bar_y + 2, rank_segments, f14)
-    px(d, RX + seg_w + (12 if rank_segments else 0), bar_y + 2, ign, f14, base_color)
+    draw_segments(d, RX, bar_y + 2, rank_segments, f16)
+    px(d, RX + seg_w + (12 if rank_segments else 0), bar_y + 2, ign, f16, base_color)
 
     d.rounded_rectangle([bar_x, bar_y, bar_x+bar_w, bar_y+bar_h], radius=3, fill=C_DARKGRAY)
     if progress > 0:
         d.rounded_rectangle([bar_x, bar_y, bar_x+int(bar_w*progress), bar_y+bar_h],
                             radius=3, fill=base_color)
-    px(d, bar_x+4,       bar_y+5, f"Lvl {level}",   f8, C_BG)
-    px(d, bar_x+bar_w-4, bar_y+5, f"Lvl {level+1}", f8, C_BG, anchor="ra")
+    px(d, bar_x+4,       bar_y+6, f"Lvl {level}",   f10, C_BG)
+    px(d, bar_x+bar_w-4, bar_y+6, f"Lvl {level+1}", f10, C_BG, anchor="ra")
 
-    d.line([(RX, 40), (W-PAD, 40)], fill=C_BORDER, width=1)
+    sep_y = bar_y + bar_h + 14
+    d.line([(RX, sep_y), (W-PAD, sep_y)], fill=C_BORDER, width=1)
 
-    # Rank label string
+    # Rank label string for display in panel
     rank_str = "".join(t for t, _ in rank_segments) if rank_segments else "Non-Ranked"
 
-    GY = 48; BH = 100; GAP = 8
+    GY = sep_y + 8; BH = 100; GAP = 8
     CW = (RW - GAP*2) // 3
 
     cells = [
@@ -244,12 +250,11 @@ def generate_hypixel_image(ign: str, level: int, progress: float,
         bx = RX + col_idx * (CW + GAP)
         by = GY + row * (BH + GAP)
         panel(d, bx, by, CW, BH)
-        px(d, bx+12, by+12, lbl, f8,  C_GRAY)
+        px(d, bx+12, by+10, lbl, f12, C_GRAY)
         if i == 1 and rank_segments:
-            # Draw rank with per-segment colors
-            draw_segments(d, bx+12, by+38, rank_segments, f14)
+            draw_segments(d, bx+12, by+36, rank_segments, f16)
         else:
-            px(d, bx+12, by+38, val, f14, col)
+            px(d, bx+12, by+36, val, f22, col)
 
     buf = io.BytesIO()
     img.save(buf, "PNG")

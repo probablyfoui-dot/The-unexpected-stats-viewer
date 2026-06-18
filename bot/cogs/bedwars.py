@@ -1,7 +1,7 @@
 """
 cogs/bedwars.py
 ---------------
-/bedwars command implementation.
+/bedwars command.
 """
 
 import io
@@ -11,7 +11,7 @@ from discord import app_commands
 from discord.ext import commands
 from PIL import Image, ImageDraw, ImageFont
 
-from core import fetch_uuid, fetch_player, FONT_PATH
+from core import fetch_uuid, fetch_player, FONT_PATH, FONT_SYMBOLS_PATH
 from cogs.hypixel import get_rank_display, draw_segments, segments_width
 
 
@@ -19,20 +19,42 @@ from cogs.hypixel import get_rank_display, draw_segments, segments_width
 # FONT
 # ---------------------------------------------------------------------------
 
+import os
+
 def load_font(size=10):
     try:
         return ImageFont.truetype(FONT_PATH, size)
     except Exception:
         return ImageFont.load_default()
 
+def load_symbol_font(size=14):
+    try:
+        return ImageFont.truetype(FONT_SYMBOLS_PATH, size)
+    except Exception:
+        return ImageFont.load_default()
+
+def px_star(draw, x, y, text, main_font, star_font, color, anchor="la"):
+    """Draw text where star glyphs (✫✪⚝✥) use star_font, everything else uses main_font."""
+    STAR_CHARS = set("✫✪⚝✥")
+    if anchor == "ra":
+        # measure total width first, then offset x
+        total = sum(
+            int(draw.textlength(ch, font=(star_font if ch in STAR_CHARS else main_font)))
+            for ch in text
+        )
+        x -= total
+    for ch in text:
+        font = star_font if ch in STAR_CHARS else main_font
+        draw.text((x, y), ch, font=font, fill=color)
+        x += int(draw.textlength(ch, font=font))
+
 
 # ---------------------------------------------------------------------------
 # PRESTIGE
 # ---------------------------------------------------------------------------
 
-# Max current suported prestige is 5000 (Eternal). We'll probably support the up to 10k next update.
-# Colors from the Hypixel wiki prestige table.
-# Stars are not included yet but will be added in the future.
+# (min_level, RGB_color, name)
+# Will add more in the future
 PRESTIGE_TABLE = [
     (   1, (150, 150, 150), "Stone"),
     ( 100, (255, 255, 255), "Iron"),
@@ -44,7 +66,7 @@ PRESTIGE_TABLE = [
     ( 700, (255, 170, 255), "Crystal"),
     ( 800, (170, 255, 255), "Opal"),
     ( 900, (170,   0, 170), "Amethyst"),
-    (1000, (255, 170,   0), "Rainbow"),     # animated in-game, couldnt do it.
+    (1000, (255, 170,   0), "Rainbow"),     # animated in-game; gold approximation
     (1100, (255, 255, 255), "Iron Prime"),
     (1200, (255, 170,   0), "Gold Prime"),
     (1300, ( 85, 255, 255), "Diamond Prime"),
@@ -95,7 +117,14 @@ def get_prestige(level: int):
             color, name = col, nm
         else:
             break
-    star = "*"  # will be adding the different stars in a later version.
+    if level >= 3000:
+        star = "✥"
+    elif level >= 2000:
+        star = "⚝"
+    elif level >= 1000:
+        star = "✪"
+    else:
+        star = "✫"
     return color, name, star
 
 
@@ -236,18 +265,20 @@ def px(draw, x, y, text, font, color=C_WHITE, anchor="la"):
 # IMAGE GENERATOR
 # ---------------------------------------------------------------------------
 
-W, H = 860, 480
+W, H = 860, 454
 
 async def generate_stats_image(ign, level, progress, prestige_color, prestige_name, star,
-                                stats, ticket_info, mode, uuid, session,
-                                rank_segments, rank_base_color):
+                                stats, mode, rank_segments, rank_base_color):
     img = Image.new("RGB", (W, H), C_BG)
     d   = ImageDraw.Draw(img)
 
-    f8  = load_font(8)
-    f10 = load_font(10)
-    f14 = load_font(14)
-    f16 = load_font(16)
+    f10  = load_font(10)
+    f12  = load_font(12)
+    f16  = load_font(16)
+    f18  = load_font(18)
+    f22  = load_font(22)
+    fs16 = load_symbol_font(16)
+    fs10 = load_symbol_font(10)
 
     PAD = 16
     RX  = PAD
@@ -255,35 +286,38 @@ async def generate_stats_image(ign, level, progress, prestige_color, prestige_na
 
     d.rectangle([0, 0, W, 4], fill=prestige_color)
 
-    # Single header row: badge, rank+IGN, XP bar
-    badge   = f"[{level}{star}]"
-    badge_w = int(d.textlength(badge, font=f14))
-    bar_y   = 8; bar_h = 18
+  
+    badge_str = f"[{level}{star}]"
+    badge_w = sum(
+        int(d.textlength(ch, font=(fs16 if ch in "✫✪⚝✥" else f16)))
+        for ch in badge_str
+    )
+    bar_y   = 8; bar_h = 22
 
-    seg_w        = segments_width(d, rank_segments, f14) if rank_segments else 0
-    ign_w        = int(d.textlength(ign, font=f14))
+    seg_w        = segments_width(d, rank_segments, f16) if rank_segments else 0
+    ign_w        = int(d.textlength(ign, font=f16))
     name_block_w = seg_w + (8 if rank_segments else 0) + ign_w + 12
 
     bar_x = RX + badge_w + 8 + name_block_w
     bar_w = RW - (bar_x - RX)
 
-    px(d, RX, bar_y+2, badge, f14, prestige_color)
-    draw_segments(d, RX + badge_w + 8, bar_y+2, rank_segments, f14)
-    px(d, RX + badge_w + 8 + seg_w + (8 if rank_segments else 0), bar_y+2, ign, f14, rank_base_color)
+    ign_color = C_WHITE if rank_base_color == (150, 150, 150) else rank_base_color
+    px_star(d, RX, bar_y+2, badge_str, f16, fs16, prestige_color)
+    draw_segments(d, RX + badge_w + 8, bar_y+2, rank_segments, f16)
+    px(d, RX + badge_w + 8 + seg_w + (8 if rank_segments else 0), bar_y+2, ign, f16, ign_color)
 
     d.rounded_rectangle([bar_x, bar_y, bar_x+bar_w, bar_y+bar_h], radius=3, fill=C_DARKGRAY)
     if progress > 0:
         d.rounded_rectangle([bar_x, bar_y, bar_x+int(bar_w*progress), bar_y+bar_h],
                             radius=3, fill=prestige_color)
-    px(d, bar_x+4,       bar_y+5, f"{level}{star}",   f8, C_BG)
-    px(d, bar_x+bar_w-4, bar_y+5, f"{level+1}{star}", f8, C_BG, anchor="ra")
-    px(d, bar_x+bar_w,   bar_y+bar_h+6, MODE_LABELS.get(mode, mode), f8, C_GRAY, anchor="ra")
+    px_star(d, bar_x+4,       bar_y+5, f"{level}{star}",   f10, fs10, C_BG)
+    px_star(d, bar_x+bar_w-4, bar_y+5, f"{level+1}{star}", f10, fs10, C_BG, anchor="ra")
 
-    sep_y = bar_y + bar_h + 14
+    sep_y = bar_y + bar_h + 16
     d.line([(RX, sep_y), (W-PAD, sep_y)], fill=C_BORDER, width=1)
 
-    GY  = sep_y + 8; BH = 82; GAP = 8
-    C0W = 180; C1W = (RW - C0W - GAP*2) // 2
+    GY  = sep_y + 8; BH = 90; GAP = 8
+    C0W = 190; C1W = (RW - C0W - GAP*2) // 2
     C0X = RX;  C1X = RX + C0W + GAP;  C2X = C1X + C1W + GAP
 
     ratio_stats = [
@@ -310,34 +344,18 @@ async def generate_stats_image(ign, level, progress, prestige_color, prestige_na
 
         panel(d, C0X, by, C0W, BH)
         lbl, val, col = ratio_stats[i]
-        px(d, C0X+12, by+12, lbl,      f10, C_GRAY)
-        px(d, C0X+12, by+32, str(val), f16, col)
+        px(d, C0X+12, by+10, lbl,      f12, C_GRAY)
+        px(d, C0X+12, by+32, str(val), f22, col)
 
         panel(d, C1X, by, C1W, BH)
         lbl, val, col = pos_stats[i]
-        px(d, C1X+12, by+12, lbl,        f10, C_GRAY)
-        px(d, C1X+12, by+32, f"{val:,}", f16, col)
+        px(d, C1X+12, by+10, lbl,        f12, C_GRAY)
+        px(d, C1X+12, by+32, f"{val:,}", f22, col)
 
         panel(d, C2X, by, C1W, BH)
         lbl, val, col = neg_stats[i]
-        px(d, C2X+12, by+12, lbl,        f10, C_GRAY)
-        px(d, C2X+12, by+32, f"{val:,}", f16, col)
-
-    ti  = ticket_info
-    BY2 = GY + 4*(BH+GAP) + 4
-    d.line([(RX, BY2), (W-PAD, BY2)], fill=C_BORDER, width=1)
-    BY2 += 10
-
-    panel(d, RX, BY2, RW, H-BY2-PAD)
-    t_rows  = [
-        ("Total Earned", f"{ti['total_earned']:,}", C_GOLD),
-        ("In Stock",     f"{ti['tickets_stock']:,}", C_WHITE),
-    ]
-    spacing = (RW - 24) // len(t_rows)
-    for j, (lbl, val, col) in enumerate(t_rows):
-        tx = RX + 12 + j * spacing
-        px(d, tx, BY2+8,  lbl, f10, C_GRAY)
-        px(d, tx, BY2+26, val, f16, col)
+        px(d, C2X+12, by+10, lbl,        f12, C_GRAY)
+        px(d, C2X+12, by+32, f"{val:,}", f22, col)
 
     buf = io.BytesIO()
     img.save(buf, "PNG")
@@ -351,7 +369,7 @@ async def generate_stats_image(ign, level, progress, prestige_color, prestige_na
 
 class ModeSelect(discord.ui.Select):
     def __init__(self, ign, player_data, uuid):
-        self.ign = ign; self.player_data = player_data; self.uuid = uuid
+        self.ign = ign; self.player_data = player_data
         options = [discord.SelectOption(label=v, value=k) for k, v in MODE_LABELS.items()]
         super().__init__(placeholder="Switch mode...", options=options, min_values=1, max_values=1)
 
@@ -362,10 +380,8 @@ class ModeSelect(discord.ui.Select):
         lvl, prog   = bedwars_level(bw.get("Experience", 0))
         pc, pn, star = get_prestige(lvl)
         stats       = get_stats(bw, mode)
-        ti          = get_ticket_info(bw, self.player_data)
         rank_segs, rank_base = get_rank_display(self.player_data)
-        async with aiohttp.ClientSession() as session:
-            buf = await generate_stats_image(self.ign, lvl, prog, pc, pn, star, stats, ti, mode, self.uuid, session, rank_segs, rank_base)
+        buf = await generate_stats_image(self.ign, lvl, prog, pc, pn, star, stats, mode, rank_segs, rank_base)
         await interaction.followup.edit_message(
             interaction.message.id,
             attachments=[discord.File(buf, "bedwars.png")],
@@ -379,7 +395,7 @@ class ModeView(discord.ui.View):
 
 
 # ---------------------------------------------------------------------------
-# COG (command implementation)
+# COG
 # ---------------------------------------------------------------------------
 
 class BedWarsCog(commands.Cog):
@@ -403,9 +419,8 @@ class BedWarsCog(commands.Cog):
             lvl, prog   = bedwars_level(bw.get("Experience", 0))
             pc, pn, star = get_prestige(lvl)
             stats       = get_stats(bw, "all")
-            ti          = get_ticket_info(bw, player)
             rank_segs, rank_base = get_rank_display(player)
-            buf         = await generate_stats_image(name, lvl, prog, pc, pn, star, stats, ti, "all", uuid, session, rank_segs, rank_base)
+            buf         = await generate_stats_image(name, lvl, prog, pc, pn, star, stats, "all", rank_segs, rank_base)
         await interaction.followup.send(
             file=discord.File(buf, "bedwars.png"),
             view=ModeView(name, player, uuid),

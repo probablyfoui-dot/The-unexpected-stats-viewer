@@ -1,8 +1,7 @@
 """
 core.py
 -------
-Bot setup and Hypixel/Mojang API calls only.
-All game-specific logic lives in the cogs.
+Api calls
 """
 
 import os
@@ -20,7 +19,8 @@ HYPIXEL_API_KEY = os.getenv("HYPIXEL_API_KEY")
 MOJANG_API  = "https://api.mojang.com/users/profiles/minecraft/{}"
 HYPIXEL_API = "https://api.hypixel.net/v2/player"
 
-FONT_PATH = os.path.join(os.path.dirname(__file__), "PressStart2P.ttf")
+FONT_PATH        = os.path.join(os.path.dirname(__file__), "Inter.ttf")
+FONT_SYMBOLS_PATH = os.path.join(os.path.dirname(__file__), "NotoSansSymbols2.ttf")
 
 
 # ---------------------------------------------------------------------------
@@ -29,8 +29,14 @@ FONT_PATH = os.path.join(os.path.dirname(__file__), "PressStart2P.ttf")
 
 def download_font():
     if not os.path.exists(FONT_PATH):
-        url = "https://github.com/google/fonts/raw/main/ofl/pressstart2p/PressStart2P-Regular.ttf"
+        url = "https://github.com/google/fonts/raw/main/ofl/inter/Inter%5Bopsz%2Cwght%5D.ttf"
         urllib.request.urlretrieve(url, FONT_PATH)
+    if not os.path.exists(FONT_SYMBOLS_PATH):
+        url = (
+            "https://github.com/googlefonts/noto-fonts/raw/main/"
+            "hinted/ttf/NotoSansSymbols2/NotoSansSymbols2-Regular.ttf"
+        )
+        urllib.request.urlretrieve(url, FONT_SYMBOLS_PATH)
 
 # ---------------------------------------------------------------------------
 # API CALLS
@@ -64,6 +70,7 @@ async def main():
     await bot.load_extension("cogs.bedwars")
     await bot.load_extension("cogs.skywars")
     await bot.load_extension("cogs.hypixel")
+    await bot.load_extension("cogs.quent")
 
     @bot.event
     async def on_ready():
