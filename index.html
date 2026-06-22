@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>The Unexpected Stats Viewer</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f1117;
+      --bg2: #181b23;
+      --bg3: #1e2130;
+      --border: rgba(255,255,255,0.07);
+      --border2: rgba(255,255,255,0.12);
+      --text: #e8eaf0;
+      --muted: #8b90a0;
+      --hint: #555a6e;
+      --accent: #5865F2;
+      --accent-dim: rgba(88,101,242,0.12);
+      --accent-dim2: rgba(88,101,242,0.2);
+      --radius: 10px;
+      --radius-lg: 14px;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+
+    /* NAV */
+    nav {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 1rem 2rem;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg);
+      position: sticky; top: 0; z-index: 100;
+      backdrop-filter: blur(12px);
+    }
+    .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+    .brand-logo {
+      width: 34px; height: 34px; border-radius: 9px;
+      background: var(--accent);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; flex-shrink: 0;
+    }
+    .brand-text { display: flex; flex-direction: column; }
+    .brand-name { font-size: 14px; font-weight: 600; color: var(--text); line-height: 1.2; }
+    .brand-sub { font-size: 11px; color: var(--muted); }
+    .tab-bar { display: flex; gap: 2px; background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 3px; }
+    .tab-bar button {
+      background: none; border: none; font-size: 13px; padding: 5px 14px;
+      border-radius: 7px; cursor: pointer; color: var(--muted);
+      font-family: inherit; font-weight: 500;
+      transition: background 0.15s, color 0.15s;
+    }
+    .tab-bar button.active { background: var(--bg3); color: var(--text); }
+    .tab-bar button:hover:not(.active) { color: var(--text); }
+
+    /* HERO */
+    .hero {
+      padding: 3.5rem 2rem 2.5rem;
+      border-bottom: 1px solid var(--border);
+      max-width: 740px; margin: 0 auto;
+      animation: fadeUp 0.4s ease both;
+    }
+    .hero-eyebrow {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--accent-dim); color: var(--accent);
+      font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+      padding: 4px 10px; border-radius: 20px; margin-bottom: 1.25rem;
+      border: 1px solid var(--accent-dim2);
+    }
+    .hero h1 { font-size: 2rem; font-weight: 700; color: var(--text); margin-bottom: 0.6rem; line-height: 1.25; }
+    .hero p { font-size: 15px; color: var(--muted); line-height: 1.75; max-width: 560px; }
+    .hero-date { font-size: 12px; color: var(--hint); margin-top: 1.25rem; }
+
+    /* PAGE */
+    .page { display: none; padding: 2.5rem 2rem; max-width: 740px; margin: 0 auto; }
+    .page.active { display: block; animation: fadeUp 0.3s ease both; }
+
+    /* SUMMARY CARD */
+    .summary-card {
+      display: flex; gap: 14px; align-items: flex-start;
+      background: var(--accent-dim);
+      border: 1px solid var(--accent-dim2);
+      border-radius: var(--radius-lg);
+      padding: 1.1rem 1.25rem;
+      margin-bottom: 2.5rem;
+    }
+    .summary-icon { font-size: 20px; flex-shrink: 0; margin-top: 1px; }
+    .summary-card p { font-size: 14px; color: var(--muted); line-height: 1.75; }
+    .summary-card p strong { color: var(--text); font-weight: 600; }
+
+    /* SECTIONS */
+    .section { margin-bottom: 2.25rem; }
+    .section-header { display: flex; align-items: center; gap: 10px; margin-bottom: 0.9rem; }
+    .section-icon {
+      width: 30px; height: 30px; border-radius: 8px;
+      background: var(--bg3); border: 1px solid var(--border2);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 15px; flex-shrink: 0;
+    }
+    .section h2 { font-size: 14px; font-weight: 600; color: var(--text); }
+    .section p { font-size: 14px; color: var(--muted); line-height: 1.8; margin-bottom: 0.5rem; }
+    .section ul { list-style: none; padding: 0; }
+    .section ul li {
+      font-size: 14px; color: var(--muted); line-height: 1.8;
+      padding: 3px 0 3px 1.25rem; position: relative;
+    }
+    .section ul li::before {
+      content: ""; position: absolute; left: 0; top: 13px;
+      width: 5px; height: 5px; border-radius: 50%;
+      background: var(--accent); opacity: 0.5;
+    }
+    .divider { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+
+    /* CONTACT */
+    .contact-link {
+      display: flex; align-items: center; gap: 10px;
+      padding: 0.8rem 1rem;
+      border: 1px solid var(--border2);
+      border-radius: var(--radius);
+      text-decoration: none;
+      color: var(--muted);
+      font-size: 14px;
+      margin-top: 0.75rem;
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
+    }
+    .contact-link:hover { background: var(--bg3); border-color: var(--accent-dim2); color: var(--text); }
+    .contact-link .link-icon { font-size: 18px; color: var(--accent); flex-shrink: 0; }
+    .contact-link span { flex: 1; }
+    .contact-link .arrow { font-size: 12px; color: var(--hint); }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (max-width: 600px) {
+      nav { padding: 0.85rem 1rem; }
+      .hero, .page { padding-left: 1rem; padding-right: 1rem; }
+      .hero h1 { font-size: 1.5rem; }
+      .brand-sub { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <a class="brand" href="#">
+    <div class="brand-logo">🦐</div>
+    <div class="brand-text">
+      <span class="brand-name">Unexpected Stats Viewer</span>
+      <span class="brand-sub">Hypixel Discord bot</span>
+    </div>
+  </a>
+  <div class="tab-bar">
+    <button class="active" onclick="show('tos', this)">Terms of service</button>
+    <button onclick="show('privacy', this)">Privacy policy</button>
+  </div>
+</nav>
+
+<!-- HEROES -->
+<div id="tos-hero" class="hero">
+  <div class="hero-eyebrow">📄 Terms of service</div>
+  <h1>Simple rules for a simple bot</h1>
+  <p>This bot checks Hypixel stats. That's it. The rules are short because there's not much to worry about.</p>
+  <div class="hero-date">Last updated: June 2026</div>
+</div>
+
+<div id="privacy-hero" class="hero" style="display:none">
+  <div class="hero-eyebrow">🔒 Privacy policy</div>
+  <h1>We don't store your data</h1>
+  <p>The bot reads a username, fetches stats from Hypixel, and responds. Nothing is saved, logged, or tracked.</p>
+  <div class="hero-date">Last updated: June 2026</div>
+</div>
+
+<!-- TERMS OF SERVICE -->
+<div id="tos" class="page active">
+
+  <div class="summary-card">
+    <span class="summary-icon">⚡</span>
+    <p><strong>In a nutshell —</strong> Don't spam the bot or try to break it. Stats are accurate. The service is free and may go down occasionally.</p>
+  </div>
+
+  <div class="section">
+    <div class="section-header">
+      <div class="section-icon">🤖</div>
+      <h2>What the bot does</h2>
+    </div>
+    <p>The Unexpected Stats Viewer fetches and displays Hypixel statistics in Discord. It's a read-only stats tool — it doesn't interact with your Minecraft account, send messages on your behalf, or do anything else.</p>
+  </div>
+
+  <hr class="divider" />
+
+  <div class="section">
+    <div class="section-header">
+      <div class="section-icon">🚫</div>
+      <h2>Don't do this</h2>
+    </div>
+    <ul>
+      <li>Spam commands to overload the bot</li>
+      <li>Try to exploit or reverse-engineer it</li>
+      <li>Violate Discord's or Hypixel's own terms of service</li>
+    </ul>
+  </div>
+
+  <hr class="divider" />
+
+  <div class="section">
+    <div class="section-header">
+      <div class="section-icon">⚙️</div>
+      <h2>Service availability</h2>
+    </div>
+    <p>The bot is free to use. It may go offline for maintenance or updates occasionally. We reserve the right to change or discontinue it at any time.</p>
+  </div>
+
+  <hr class="divider" />
+
+  <div class="section">
+    <div class="section-header">
+      <div class="section-icon">💬</div>
+      <h2>Contact</h2>
+    </div>
+    <p>Found a bug or have a question?</p>
+    <a class="contact-link" href="https://github.com/probablyfoui-dot/The-unexpected-stats-viewer/issues" target="_blank">
+      <span class="link-icon">🐈‍⬛</span>
+      <span>Open an issue on GitHub</span>
+      <span class="arrow">↗</span>
+    </a>
+  </div>
+
+</div>
+
+<!-- PRIVACY POLICY -->
+<div id="privacy" class="page">
+
+  <div class="summary-card">
+    <span class="summary-icon">🛡️</span>
+    <p><strong>In a nutshell —</strong> We only see the Minecraft username you type. We don't store it. It's gone the moment your stats are returned.</p>
+  </div>
+
+  <div class="section">
+    <div class="section-header">
+      <div class="section-icon">🗄️</div>
+      <h2>What we process</h2>
+    </div>
+    <p>When you run a command, the bot temporarily processes:</p>
+    <ul>
+      <li>The Minecraft username or UUID you provide</li>
+      <li>Your Discord server and channel ID — only to know where to send the reply</li>
+    </ul>
+    <p style="margin-top:0.5rem">None of this is stored after the response is sent.</p>
+  </div>
+
+  <hr class="divider" />
+
+  <div class="section">
+    <div class="section-header">
+      <div class="section-icon">🚫</div>
+      <h2>What we don't collect</h2>
+    </div>
+    <ul>
+      <li>Your Discord username or profile info</li>
+      <li>Your IP address</li>
+      <li>Any history of past lookups</li>
+      <li>Anything else — seriously</li>
+    </ul>
+  </div>
+
+  <hr class="divider" />
+
+  <div class="section">
+    <div class="section-header">
+      <div class="section-icon">🔗</div>
+      <h2>Third-party APIs</h2>
+    </div>
+    <p>Stats are fetched live from the Hypixel API. Hypixel's and Discord's own privacy policies apply to their respective platforms.</p>
+  </div>
+
+  <hr class="divider" />
+
+  <div class="section">
+    <div class="section-header">
+      <div class="section-icon">💬</div>
+      <h2>Contact</h2>
+    </div>
+    <p>Privacy questions? Reach us on GitHub.</p>
+    <a class="contact-link" href="https://github.com/probablyfoui-dot/The-unexpected-stats-viewer/issues" target="_blank">
+      <span class="link-icon">🐈‍⬛</span>
+      <span>Open an issue on GitHub</span>
+      <span class="arrow">↗</span>
+    </a>
+  </div>
+
+</div>
+
+<script>
+  function show(id, btn) {
+    ['tos', 'privacy'].forEach(p => {
+      document.getElementById(p).classList.remove('active');
+      document.getElementById(p + '-hero').style.display = 'none';
+    });
+    document.querySelectorAll('.tab-bar button').forEach(b => b.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    document.getElementById(id + '-hero').style.display = 'block';
+    btn.classList.add('active');
+  }
+</script>
+
+</body>
+</html>
