@@ -1,0 +1,20 @@
+[package]
+name = "render"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+hypixel = { path = "../hypixel" }
+
+image.workspace = true
+mctext.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+chrono.workspace = true
+
+# Skin renderer dependencies
+wgpu = "24.0"
+glam = { version = "0.29", features = ["bytemuck"] }
+bytemuck = { version = "1.21", features = ["derive"] }
+pollster = "0.4"
+tracing.workspace = true

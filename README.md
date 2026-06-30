@@ -14,12 +14,9 @@ The bot is designed to evolve with updates which will include:
 - insights that other Discord bots do not show by default
 
 ## Setup
-1. Copy `bot/.env.example` to `bot/.env`
+1. Copy `stats-bot/.env.example` to `stats-bot/.env`
 2. Fill in your Discord bot token and Hypixel API key
-3. Run the bot from the `bot/` folder
-
-## Security
-Keep `bot/.env` private and do not commit it to GitHub. Use `bot/.env.example` as the reference file for configuration.
+3. Run the bot from the `stats-botbot/` folder
 
 ## Feedback
 We are currently developing this as a team and would love your feedback on what we could change to make this better!
